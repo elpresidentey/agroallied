@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #ffffff;
+  --primary-light: #f9f7f4;
+  --secondary: #2d5016;
+  --secondary-light: #6b8e23;
+  --secondary-lighter: #9caf88;
+  --shadow: rgba(0, 0, 0, 0.06);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --font-sans: "Inter", "Lato", sans-serif;
+}
+
+body {
+  background: var(--primary);
+  color: var(--foreground);
+  font-family: "Inter", "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Smooth transitions and rounded corners */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* Card base styles */
+.card {
+  @apply rounded-lg shadow-md p-6 bg-white border border-gray-100;
+}
+
+/* Soft shadows */
+.shadow-soft {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-medium {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
