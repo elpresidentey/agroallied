@@ -73,10 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<AuthErrorInterface | null>(null);
   
-  // Request deduplication
+  // Request deduplication and abort control
   const pendingRequests = useRef<Map<string, Promise<any>>>(new Map());
   const authStateListenerRef = useRef<{ subscription: { unsubscribe: () => void } } | null>(null);
   const supabaseClient = useRef(createBrowserClient());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Deduplicated request helper
   const deduplicateRequest = useCallback(<T,>(key: string, requestFn: () => Promise<T>): Promise<T> => {
@@ -100,16 +101,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setInitializing(true);
         setError(null);
         
+        // Create a new abort controller for this session restoration
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        
         // First try to restore from cookies, then get current user
         const currentUser = await authService.getCurrentUser();
+        
+        // Check if operation was aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
+        
         setUser(currentUser);
       } catch (err) {
+        // Ignore AbortError as it's expected when component unmounts
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        
         console.error('Session restoration error:', err);
         setUser(null);
         // Don't set error state for session restoration failures
         // as this is expected when user is not authenticated
       } finally {
-        setInitializing(false);
+        // Only update state if not aborted
+        if (!abortControllerRef.current?.signal.aborted) {
+          setInitializing(false);
+        }
       }
     });
   }, [deduplicateRequest]);
@@ -120,23 +141,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         setError(null);
         
+        // Check if we have an active abort controller and if it's aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
+        
         if (session?.user) {
           // User signed in or token refreshed
           const currentUser = await authService.getCurrentUser();
+          
+          // Check again after async operation
+          if (abortControllerRef.current?.signal.aborted) {
+            return;
+          }
+          
           setUser(currentUser);
         } else {
           // User signed out or session expired
           setUser(null);
         }
       } catch (err) {
+        // Ignore AbortError as it's expected when component unmounts
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        
         console.error('Auth state change error:', err);
         setUser(null);
         // Don't set error state for auth state change failures
         // as this can happen during normal sign out flows
       } finally {
-        setLoading(false);
-        if (initializing) {
-          setInitializing(false);
+        // Only update loading state if not aborted
+        if (!abortControllerRef.current?.signal.aborted) {
+          setLoading(false);
+          if (initializing) {
+            setInitializing(false);
+          }
         }
       }
     });
@@ -152,6 +192,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStateListenerRef.current = listener;
 
     return () => {
+      // Abort any ongoing operations
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
       // Clean up listener
       if (authStateListenerRef.current) {
         authStateListenerRef.current.subscription.unsubscribe();

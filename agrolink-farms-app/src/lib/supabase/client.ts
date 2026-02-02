@@ -129,6 +129,7 @@ let browserClient: SupabaseClient | null = null
  * - localStorage persistence for sessions
  * - URL-based session detection (for auth callbacks)
  * - PKCE flow for enhanced security
+ * - Graceful handling of AbortController signals
  * 
  * Uses singleton pattern to ensure only one browser client exists.
  * 
@@ -157,11 +158,29 @@ export function createBrowserClient(): SupabaseClient {
       // Use localStorage for session persistence in browser
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       storageKey: 'supabase.auth.token',
-      flowType: 'pkce'
+      flowType: 'pkce',
+      // Add debug mode in development to help troubleshoot issues
+      debug: process.env.NODE_ENV === 'development'
     },
     global: {
       headers: {
         'X-Client-Info': 'agrolink-farms-browser'
+      },
+      // Add fetch options to handle AbortController gracefully
+      fetch: (url, options = {}) => {
+        return fetch(url, {
+          ...options,
+          // Add timeout to prevent hanging requests
+          signal: options.signal || AbortSignal.timeout(10000) // 10 second timeout
+        }).catch(error => {
+          // Handle AbortError gracefully
+          if (error.name === 'AbortError') {
+            console.debug('Request aborted:', url);
+            throw error;
+          }
+          // Re-throw other errors
+          throw error;
+        });
       }
     }
   })

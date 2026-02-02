@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorSuppressionInitializer } from "@/components/ErrorSuppressionInitializer";
 
 export const metadata: Metadata = {
   title: "AgroLink Farms - Verified Farm Animals Marketplace",
@@ -24,9 +26,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased bg-white text-gray-900">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ErrorSuppressionInitializer />
+        <ErrorBoundary>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
