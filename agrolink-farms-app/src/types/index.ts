@@ -35,17 +35,15 @@ export interface Farm {
 
 export interface Animal {
   id: string;
-  farm_id: string;
-  type: 'cattle' | 'goat' | 'sheep' | 'poultry' | 'pig';
+  name: string;
+  type: 'cows' | 'goats' | 'poultry' | 'fish' | 'dogs' | 'others';
   breed: string;
-  age_months: number;
-  weight_kg: number;
-  gender: 'male' | 'female' | 'mixed';
+  age: number;
   price: number;
-  available_count: number;
   description: string;
-  status: 'active' | 'inactive';
-  image_url: string;
+  farm_id: string;
+  seller_id: string;
+  status: 'available' | 'sold' | 'reserved';
   created_at: string;
   updated_at?: string;
 }

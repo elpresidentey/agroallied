@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase/client';
+import { cookies } from 'next/headers';
 
 // Email templates
 const orderConfirmationTemplate = (buyerName: string, animalBreed: string, quantity: number, totalPrice: number, orderId: string) => `
@@ -118,6 +119,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const cookieStore = await cookies();
+    const supabase = createServerClient(cookieStore);
 
     // Fetch order details
     const { data: order, error: orderError } = await supabase

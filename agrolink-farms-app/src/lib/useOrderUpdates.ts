@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from './supabase';
+import { createBrowserClient } from './supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface OrderUpdate {
@@ -17,6 +17,8 @@ export function useOrderUpdates(userId: string, userRole: 'buyer' | 'seller') {
 
   useEffect(() => {
     if (!userId) return;
+
+    const supabase = createBrowserClient();
 
     // Subscribe to order changes
     const orderChannel = supabase

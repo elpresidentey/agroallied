@@ -1,13 +1,14 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getBuyerOrders, getSellerOrders, updateOrderStatus } from '@/lib/api';
 import { useOrderUpdates } from '@/lib/useOrderUpdates';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Toast from '@/components/Toast';
+import { ProtectedRoute } from '@/components/auth/protected-route';
+import type { User } from '@/types';
 
 interface OrderData {
   id: string;
@@ -40,8 +41,7 @@ const statusIcons = {
 };
 
 export default function OrdersPage() {
-  const { user, isAuthenticated, loading } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [error, setError] = useState<string>('');
@@ -57,12 +57,6 @@ export default function OrdersPage() {
       setToastType('info');
     }
   }, [notification]);
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, loading, router]);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -96,22 +90,41 @@ export default function OrdersPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+  return (
+    <ProtectedRoute redirectTo="/login">
+      <OrdersPageContent 
+        user={user!}
+        orders={orders}
+        loadingOrders={loadingOrders}
+        error={error}
+        toastMessage={toastMessage}
+        toastType={toastType}
+        setToastMessage={setToastMessage}
+        handleStatusChange={handleStatusChange}
+      />
+    </ProtectedRoute>
+  );
+}
 
-  if (!user) return null;
-
+function OrdersPageContent({
+  user,
+  orders,
+  loadingOrders,
+  error,
+  toastMessage,
+  toastType,
+  setToastMessage,
+  handleStatusChange
+}: {
+  user: User;
+  orders: OrderData[];
+  loadingOrders: boolean;
+  error: string;
+  toastMessage: string;
+  toastType: 'success' | 'error' | 'info';
+  setToastMessage: (message: string) => void;
+  handleStatusChange: (orderId: string, newStatus: string) => Promise<void>;
+}) {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <Header />

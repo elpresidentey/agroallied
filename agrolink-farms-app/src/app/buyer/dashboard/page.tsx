@@ -1,15 +1,14 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getBuyerOrders } from '@/lib/api';
+import { ProtectedRoute } from '@/components/auth/protected-route';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-export default function BuyerDashboard() {
-  const { user, isAuthenticated, loading } = useAuth();
-  const router = useRouter();
+function BuyerDashboardContent() {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     activeOrders: 0,
     pendingPayments: 0,
@@ -18,12 +17,6 @@ export default function BuyerDashboard() {
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(false);
-
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || user?.role !== 'buyer')) {
-      router.push('/');
-    }
-  }, [isAuthenticated, loading, user, router]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -67,29 +60,13 @@ export default function BuyerDashboard() {
     fetchData();
   }, [user?.id]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!user || user.role !== 'buyer') return null;
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Welcome, {user.name || 'Buyer'}</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Welcome, {user?.name || 'Buyer'}</h1>
           <p className="text-gray-600 mt-2">Track your livestock purchases and manage orders</p>
         </div>
 
@@ -236,5 +213,13 @@ export default function BuyerDashboard() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function BuyerDashboard() {
+  return (
+    <ProtectedRoute requiredRole="buyer">
+      <BuyerDashboardContent />
+    </ProtectedRoute>
   );
 }

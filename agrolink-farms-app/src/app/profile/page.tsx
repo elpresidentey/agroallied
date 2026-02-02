@@ -1,36 +1,14 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { ProtectedRoute } from '@/components/auth/protected-route';
 
-export default function ProfilePage() {
-  const { user, isAuthenticated, loading } = useAuth();
-  const router = useRouter();
+function ProfilePageContent() {
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, loading, router]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
+  // user is guaranteed to be non-null inside ProtectedRoute
   if (!user) return null;
 
   const getRoleBadgeColor = (role: string) => {
@@ -160,5 +138,13 @@ export default function ProfilePage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <ProtectedRoute redirectTo="/login">
+      <ProfilePageContent />
+    </ProtectedRoute>
   );
 }

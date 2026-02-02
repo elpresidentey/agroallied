@@ -1,8 +1,9 @@
-import { supabase } from './supabase';
+import { createBrowserClient } from './supabase/client';
 import type { Animal, Farm, Order, User } from '@/types';
 
 // Animals
 export async function getAnimals(limit = 20, offset = 0) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .select('*, farms(name, verified, rating)')
@@ -15,6 +16,7 @@ export async function getAnimals(limit = 20, offset = 0) {
 }
 
 export async function getAnimalById(animalId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .select('*, farms(id, name, location, verified, rating, image_url)')
@@ -26,6 +28,7 @@ export async function getAnimalById(animalId: string) {
 }
 
 export async function getAnimalsByCategory(category: string, limit = 20) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .select('*, farms(name, verified, rating)')
@@ -39,6 +42,7 @@ export async function getAnimalsByCategory(category: string, limit = 20) {
 }
 
 export async function searchAnimals(query: string, limit = 20) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .select('*, farms(name, verified, rating)')
@@ -63,6 +67,7 @@ export async function createAnimal(animalData: {
   imageUrl?: string | null;
   farmId?: string;
 }) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .insert({
@@ -88,6 +93,7 @@ export async function createAnimal(animalData: {
 
 // Farms
 export async function getFarms(limit = 20, offset = 0) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('farms')
     .select('*')
@@ -100,6 +106,7 @@ export async function getFarms(limit = 20, offset = 0) {
 }
 
 export async function getFarmById(farmId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('farms')
     .select('*')
@@ -111,6 +118,7 @@ export async function getFarmById(farmId: string) {
 }
 
 export async function getFarmListings(farmId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('animals')
     .select('*')
@@ -123,6 +131,7 @@ export async function getFarmListings(farmId: string) {
 
 // Orders
 export async function createOrder(buyerId: string, animalId: string, quantity: number, totalPrice: number, notes?: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('orders')
     .insert({
@@ -141,6 +150,7 @@ export async function createOrder(buyerId: string, animalId: string, quantity: n
 }
 
 export async function getOrders(userId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('orders')
     .select('*, animals(*), farms(*)')
@@ -152,6 +162,7 @@ export async function getOrders(userId: string) {
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('orders')
     .update({ status, updated_at: new Date().toISOString() })
@@ -164,6 +175,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
 }
 
 export async function getSellerOrders(userId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('orders')
     .select('*, animals(*), users(*)')
@@ -175,6 +187,7 @@ export async function getSellerOrders(userId: string) {
 }
 
 export async function getBuyerOrders(userId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('orders')
     .select('*, animals(*), farms(*)')
@@ -187,6 +200,7 @@ export async function getBuyerOrders(userId: string) {
 
 // Users
 export async function getUserById(userId: string) {
+  const supabase = createBrowserClient();
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -199,6 +213,7 @@ export async function getUserById(userId: string) {
 
 // Stats
 export async function getStats() {
+  const supabase = createBrowserClient();
   const [usersResponse, farmsResponse, animalsResponse, ordersResponse] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('farms').select('*', { count: 'exact', head: true }).eq('verified', true),

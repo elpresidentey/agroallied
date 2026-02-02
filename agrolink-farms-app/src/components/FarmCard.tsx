@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Farm } from '@/types';
+import { CategoryImage, CategoryImageErrorBoundary } from '@/lib/images/components';
 
 interface FarmCardProps {
   farm: Farm;
@@ -11,6 +12,19 @@ export default function FarmCard({ farm, animalCount = 0 }: FarmCardProps) {
   return (
     <Link href={`/farms/${farm.id}`}>
       <div className="card hover:shadow-medium transition-all duration-300 cursor-pointer group">
+        {/* Farm Image */}
+        <div className="w-full h-32 mb-4 rounded-lg overflow-hidden">
+          <CategoryImageErrorBoundary category="farms">
+            <CategoryImage
+              category="farms"
+              size="medium"
+              lazy={true}
+              showAttribution={false}
+              className="w-full h-full"
+            />
+          </CategoryImageErrorBoundary>
+        </div>
+
         {/* Header with verification badge */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">

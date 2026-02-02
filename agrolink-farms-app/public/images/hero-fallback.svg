@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Sky gradient -->
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#87CEEB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E0F6FF;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Field gradient -->
+    <linearGradient id="field" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#90EE90;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#228B22;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Barn gradient -->
+    <linearGradient id="barn" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B4513;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#654321;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky background -->
+  <rect width="1200" height="300" fill="url(#sky)"/>
+  
+  <!-- Rolling hills -->
+  <path d="M0,250 Q300,200 600,240 T1200,220 L1200,600 L0,600 Z" fill="url(#field)"/>
+  
+  <!-- Distant mountains -->
+  <path d="M0,180 L200,120 L400,160 L600,100 L800,140 L1000,110 L1200,150 L1200,300 L0,300 Z" fill="#4682B4" opacity="0.3"/>
+  
+  <!-- Farm barn -->
+  <rect x="850" y="200" width="120" height="80" fill="url(#barn)"/>
+  <polygon points="850,200 910,160 970,200" fill="#8B0000"/>
+  
+  <!-- Barn door -->
+  <rect x="880" y="240" width="30" height="40" fill="#654321"/>
+  
+  <!-- Silo -->
+  <rect x="980" y="180" width="40" height="100" fill="#C0C0C0"/>
+  <ellipse cx="1000" cy="180" rx="20" ry="8" fill="#A9A9A9"/>
+  
+  <!-- Trees -->
+  <ellipse cx="150" cy="220" rx="40" ry="60" fill="#228B22"/>
+  <rect x="145" y="250" width="10" height="30" fill="#8B4513"/>
+  
+  <ellipse cx="750" cy="210" rx="35" ry="50" fill="#32CD32"/>
+  <rect x="746" y="235" width="8" height="25" fill="#8B4513"/>
+  
+  <!-- Fence -->
+  <g stroke="#8B4513" stroke-width="3" fill="none">
+    <line x1="300" y1="260" x2="700" y2="250"/>
+    <line x1="320" y1="240" x2="320" y2="270"/>
+    <line x1="380" y1="242" x2="380" y2="272"/>
+    <line x1="440" y1="244" x2="440" y2="274"/>
+    <line x1="500" y1="246" x2="500" y2="276"/>
+    <line x1="560" y1="248" x2="560" y2="278"/>
+    <line x1="620" y1="249" x2="620" y2="279"/>
+    <line x1="680" y1="250" x2="680" y2="280"/>
+  </g>
+  
+  <!-- Clouds -->
+  <g fill="white" opacity="0.8">
+    <ellipse cx="200" cy="80" rx="40" ry="20"/>
+    <ellipse cx="220" cy="75" rx="35" ry="18"/>
+    <ellipse cx="180" cy="75" rx="30" ry="15"/>
+    
+    <ellipse cx="800" cy="60" rx="50" ry="25"/>
+    <ellipse cx="825" cy="55" rx="40" ry="20"/>
+    <ellipse cx="775" cy="55" rx="35" ry="18"/>
+  </g>
+  
+  <!-- Sun -->
+  <circle cx="1000" cy="100" r="35" fill="#FFD700" opacity="0.9"/>
+  
+  <!-- Farm animals silhouettes -->
+  <g fill="#000000" opacity="0.6">
+    <!-- Cow -->
+    <ellipse cx="400" cy="270" rx="25" ry="12"/>
+    <rect x="390" y="275" width="4" height="15"/>
+    <rect x="396" y="275" width="4" height="15"/>
+    <rect x="404" y="275" width="4" height="15"/>
+    <rect x="410" y="275" width="4" height="15"/>
+    
+    <!-- Sheep -->
+    <ellipse cx="480" cy="275" rx="18" ry="10"/>
+    <circle cx="475" cy="270" r="8"/>
+    <rect x="470" y="280" width="3" height="10"/>
+    <rect x="475" y="280" width="3" height="10"/>
+    <rect x="480" y="280" width="3" height="10"/>
+    <rect x="485" y="280" width="3" height="10"/>
+  </g>
+  
+  <!-- Overlay for text readability -->
+  <rect width="1200" height="600" fill="rgba(0,0,0,0.3)"/>
+  
+  <!-- Text content -->
+  <text x="600" y="320" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="52" font-weight="bold">AgroLink Farms</text>
+  <text x="600" y="360" text-anchor="middle" fill="rgba(255,255,255,0.95)" font-family="Arial, sans-serif" font-size="24">Premium Farm Animals Direct from Trusted Farms</text>
+</svg>

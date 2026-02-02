@@ -1,204 +1,413 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from './supabase';
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react';
+import { createBrowserClient } from './supabase/client';
+import { authService, SignUpParams, SignUpResult, SignInResult } from './auth/auth-service';
+import { AuthError as AuthErrorInterface, AuthErrorCode } from './auth/types';
 import type { User } from '@/types';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
+/**
+ * Authentication context type definition
+ * Provides authentication state and methods to React components
+ */
 interface AuthContextType {
+  /** Current authenticated user or null if not authenticated */
   user: User | null;
+  /** True during auth operations (sign in, sign up, etc.) */
   loading: boolean;
-  signUp: (email: string, password: string, name: string, role: 'buyer' | 'seller') => Promise<{ success: boolean; needsVerification?: boolean }>;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** True during initial session restoration on app startup */
+  initializing: boolean;
+  /** Register a new user account */
+  signUp: (email: string, password: string, name: string, role: 'buyer' | 'seller') => Promise<SignUpResult>;
+  /** Sign in an existing user */
+  signIn: (email: string, password: string) => Promise<SignInResult>;
+  /** Sign out the current user */
   signOut: () => Promise<void>;
+  /** Send password reset email to user */
+  requestPasswordReset: (email: string) => Promise<void>;
+  /** Reset password using token from email */
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  /** Resend email verification to user */
+  resendVerificationEmail: (email: string) => Promise<void>;
+  /** Update current user's profile */
+  updateProfile: (updates: Partial<User>) => Promise<User>;
+  /** Refresh current user data from server */
+  refreshUser: () => Promise<void>;
+  /** True if user is authenticated */
   isAuthenticated: boolean;
+  /** Current error state or null */
+  error: AuthErrorInterface | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Rate limiting for signup - prevent rapid requests
-let lastSignupTime = 0;
-const SIGNUP_COOLDOWN_MS = 5000; // 5 second cooldown between attempts
-
+/**
+ * AuthProvider component provides authentication context to the entire application.
+ * 
+ * This component manages authentication state, handles session restoration,
+ * and provides authentication methods to child components through React context.
+ * 
+ * Features:
+ * - Automatic session restoration on app startup
+ * - Request deduplication to prevent concurrent auth operations
+ * - Auth state change listening with Supabase
+ * - Consistent error handling across all auth operations
+ * - Loading states for better UX
+ * 
+ * @example
+ * function App() {
+ *   return (
+ *     <AuthProvider>
+ *       <YourAppComponents />
+ *     </AuthProvider>
+ *   )
+ * }
+ * 
+ * @param props - Component props
+ * @param props.children - Child components to wrap with auth context
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [error, setError] = useState<AuthErrorInterface | null>(null);
+  
+  // Request deduplication
+  const pendingRequests = useRef<Map<string, Promise<any>>>(new Map());
+  const authStateListenerRef = useRef<{ subscription: { unsubscribe: () => void } } | null>(null);
+  const supabaseClient = useRef(createBrowserClient());
 
-  // Check if user is logged in on mount
-  useEffect(() => {
-    const checkAuth = async () => {
+  // Deduplicated request helper
+  const deduplicateRequest = useCallback(<T,>(key: string, requestFn: () => Promise<T>): Promise<T> => {
+    const existingRequest = pendingRequests.current.get(key);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const newRequest = requestFn().finally(() => {
+      pendingRequests.current.delete(key);
+    });
+
+    pendingRequests.current.set(key, newRequest);
+    return newRequest;
+  }, []);
+
+  // Session restoration on mount
+  const restoreSession = useCallback(async () => {
+    return deduplicateRequest('restoreSession', async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (data.session?.user) {
-          // Fetch user profile from database
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single();
-
-          if (profile) {
-            setUser(profile as User);
-          }
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
+        setInitializing(true);
+        setError(null);
+        
+        // First try to restore from cookies, then get current user
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } catch (err) {
+        console.error('Session restoration error:', err);
+        setUser(null);
+        // Don't set error state for session restoration failures
+        // as this is expected when user is not authenticated
       } finally {
-        setLoading(false);
+        setInitializing(false);
       }
-    };
+    });
+  }, [deduplicateRequest]);
 
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+  // Handle auth state changes
+  const handleAuthStateChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
+    return deduplicateRequest(`authStateChange-${event}`, async () => {
       try {
+        setError(null);
+        
         if (session?.user) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile) {
-            setUser(profile as User);
-          }
+          // User signed in or token refreshed
+          const currentUser = await authService.getCurrentUser();
+          setUser(currentUser);
         } else {
+          // User signed out or session expired
           setUser(null);
         }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
+      } catch (err) {
+        console.error('Auth state change error:', err);
         setUser(null);
+        // Don't set error state for auth state change failures
+        // as this can happen during normal sign out flows
+      } finally {
+        setLoading(false);
+        if (initializing) {
+          setInitializing(false);
+        }
+      }
+    });
+  }, [deduplicateRequest, initializing]);
+
+  // Set up auth state listener and session restoration
+  useEffect(() => {
+    // Restore session on mount
+    restoreSession();
+
+    // Set up auth state listener
+    const { data: listener } = supabaseClient.current.auth.onAuthStateChange(handleAuthStateChange);
+    authStateListenerRef.current = listener;
+
+    return () => {
+      // Clean up listener
+      if (authStateListenerRef.current) {
+        authStateListenerRef.current.subscription.unsubscribe();
+        authStateListenerRef.current = null;
+      }
+      
+      // Clear pending requests
+      pendingRequests.current.clear();
+    };
+  }, [restoreSession, handleAuthStateChange]);
+
+  // Auth methods using AuthService
+  const signUp = useCallback(async (email: string, password: string, name: string, role: 'buyer' | 'seller'): Promise<SignUpResult> => {
+    return deduplicateRequest(`signUp-${email}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const params: SignUpParams = { email, password, name, role };
+        const result = await authService.signUp(params);
+        
+        if (result.error) {
+          setError(result.error);
+        }
+        
+        if (result.user) {
+          setUser(result.user);
+        }
+        
+        return result;
+      } catch (err) {
+        console.error('SignUp error:', err);
+        const authError: AuthErrorInterface = {
+          code: AuthErrorCode.UNKNOWN_ERROR,
+          message: err instanceof Error ? err.message : 'Unknown error occurred',
+          userMessage: 'An unexpected error occurred during signup. Please try again.',
+          retryable: true
+        };
+        const errorResult: SignUpResult = {
+          success: false,
+          needsVerification: false,
+          error: authError
+        };
+        setError(authError);
+        return errorResult;
       } finally {
         setLoading(false);
       }
     });
+  }, [deduplicateRequest]);
 
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const signUp = async (email: string, password: string, name: string, role: 'buyer' | 'seller') => {
-    // Check rate limiting
-    const now = Date.now();
-    if (now - lastSignupTime < SIGNUP_COOLDOWN_MS) {
-      const waitTime = Math.ceil((SIGNUP_COOLDOWN_MS - (now - lastSignupTime)) / 1000);
-      throw new Error(`Please wait ${waitTime} seconds before trying again`);
-    }
-
-    setLoading(true);
-    try {
-      lastSignupTime = Date.now();
-
-      // Sign up with Supabase Auth including metadata for the trigger
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role,
-          },
-          emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/auth/callback`,
-        },
-      });
-
-      if (authError) {
-        // Handle rate limit error specifically
-        if (authError.status === 429) {
-          throw new Error('Too many signup attempts. Please wait a few minutes before trying again.');
+  const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
+    return deduplicateRequest(`signIn-${email}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const result = await authService.signIn(email, password);
+        
+        if (result.error) {
+          setError(result.error);
         }
-        console.error('Auth error - full object:', authError);
-        console.error('Auth error details:', { 
-          status: authError.status, 
-          message: authError.message,
-          code: (authError as any).code,
-          name: authError.name
-        });
-        throw new Error(authError.message || JSON.stringify(authError) || 'Signup failed');
-      }
-      if (!authData.user) throw new Error('Signup failed');
-
-      // Check if profile already exists (might have been created by trigger)
-      const { data: existingProfile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (existingProfile) {
-        setUser(existingProfile as User);
-        return { success: true, needsVerification: !authData.session };
-      }
-
-      // Create user profile in database manually if trigger didn't run (fallback)
-      const { data: newUser, error: dbError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email,
-          name,
-          role,
-          verification_status: role === 'seller' ? 'pending' : 'unverified',
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        // If we get an RLS error here, it might be because email confirmation is on
-        // and the user is not yet authorized to insert. This is fine if the trigger exists.
-        console.warn('Manual profile creation failed or restricted by RLS:', dbError.message);
-
-        // If we don't have a session (email confirmation required)
-        if (!authData.session) {
-          return { success: true, needsVerification: true };
+        
+        if (result.user) {
+          setUser(result.user);
         }
-      } else {
-        setUser(newUser as User);
+        
+        return result;
+      } catch (err) {
+        console.error('SignIn error:', err);
+        const authError: AuthErrorInterface = {
+          code: AuthErrorCode.UNKNOWN_ERROR,
+          message: err instanceof Error ? err.message : 'Unknown error occurred',
+          userMessage: 'An unexpected error occurred during signin. Please try again.',
+          retryable: true
+        };
+        const errorResult: SignInResult = {
+          success: false,
+          error: authError
+        };
+        setError(authError);
+        return errorResult;
+      } finally {
+        setLoading(false);
       }
+    });
+  }, [deduplicateRequest]);
 
-      return { success: true, needsVerification: !authData.session };
-    } catch (error) {
-      setLoading(false);
-      throw error;
+  const signOut = useCallback(async (): Promise<void> => {
+    return deduplicateRequest('signOut', async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Call AuthService.signOut() to revoke tokens and clear session data
+        await authService.signOut();
+      } catch (err) {
+        console.error('SignOut error:', err);
+        // Handle logout errors gracefully - log but don't prevent local cleanup
+        // We want to ensure the user is logged out locally even if server signout fails
+      } finally {
+        // Always clear local auth state regardless of server response
+        // This ensures the UI is reset to unauthenticated state
+        setUser(null);
+        setError(null);
+        setLoading(false);
+        
+        // Clear any pending requests to prevent stale operations
+        pendingRequests.current.clear();
+      }
+    });
+  }, [deduplicateRequest]);
+
+  const requestPasswordReset = useCallback(async (email: string): Promise<void> => {
+    return deduplicateRequest(`passwordReset-${email}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        await authService.requestPasswordReset(email);
+      } catch (err) {
+        console.error('Password reset request error:', err);
+        if (err && typeof err === 'object' && 'code' in err) {
+          setError(err as AuthErrorInterface);
+        } else {
+          setError({
+            code: AuthErrorCode.UNKNOWN_ERROR,
+            message: err instanceof Error ? err.message : 'Unknown error occurred',
+            userMessage: 'Failed to send password reset email. Please try again.',
+            retryable: true
+          });
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [deduplicateRequest]);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string): Promise<void> => {
+    return deduplicateRequest(`resetPassword-${token}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        await authService.resetPassword(token, newPassword);
+        // After password reset, user needs to sign in again
+        setUser(null);
+      } catch (err) {
+        console.error('Password reset error:', err);
+        if (err && typeof err === 'object' && 'code' in err) {
+          setError(err as AuthErrorInterface);
+        } else {
+          setError({
+            code: AuthErrorCode.UNKNOWN_ERROR,
+            message: err instanceof Error ? err.message : 'Unknown error occurred',
+            userMessage: 'Failed to reset password. Please try again.',
+            retryable: true
+          });
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [deduplicateRequest]);
+
+  const resendVerificationEmail = useCallback(async (email: string): Promise<void> => {
+    return deduplicateRequest(`resendVerification-${email}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        await authService.resendVerificationEmail(email);
+      } catch (err) {
+        console.error('Resend verification error:', err);
+        if (err && typeof err === 'object' && 'code' in err) {
+          setError(err as AuthErrorInterface);
+        } else {
+          setError({
+            code: AuthErrorCode.UNKNOWN_ERROR,
+            message: err instanceof Error ? err.message : 'Unknown error occurred',
+            userMessage: 'Failed to resend verification email. Please try again.',
+            retryable: true
+          });
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [deduplicateRequest]);
+
+  const updateProfile = useCallback(async (updates: Partial<User>): Promise<User> => {
+    if (!user) {
+      throw new Error('No authenticated user');
     }
-  };
+    
+    return deduplicateRequest(`updateProfile-${user.id}`, async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const updatedUser = await authService.updateProfile(user.id, updates);
+        setUser(updatedUser);
+        return updatedUser;
+      } catch (err) {
+        console.error('Update profile error:', err);
+        if (err && typeof err === 'object' && 'code' in err) {
+          setError(err as AuthErrorInterface);
+        } else {
+          setError({
+            code: AuthErrorCode.UNKNOWN_ERROR,
+            message: err instanceof Error ? err.message : 'Unknown error occurred',
+            userMessage: 'Failed to update profile. Please try again.',
+            retryable: true
+          });
+        }
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    });
+  }, [user, deduplicateRequest]);
 
-  const signIn = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // User data will be fetched via auth state listener
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    setLoading(true);
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refreshUser = useCallback(async (): Promise<void> => {
+    return deduplicateRequest('refreshUser', async () => {
+      setError(null);
+      
+      try {
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } catch (err) {
+        console.error('Refresh user error:', err);
+        // Don't set error state for refresh failures
+        // as this might be called frequently
+      }
+    });
+  }, [deduplicateRequest]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
+        initializing,
         signUp,
         signIn,
         signOut,
+        requestPasswordReset,
+        resetPassword,
+        resendVerificationEmail,
+        updateProfile,
+        refreshUser,
         isAuthenticated: !!user,
+        error,
       }}
     >
       {children}
@@ -206,6 +415,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook to access authentication context
+ * 
+ * This hook provides access to authentication state and methods.
+ * Must be used within an AuthProvider component.
+ * 
+ * @example
+ * function MyComponent() {
+ *   const { user, signIn, signOut, loading } = useAuth()
+ *   
+ *   if (loading) return <div>Loading...</div>
+ *   
+ *   return user ? (
+ *     <div>Welcome {user.name}! <button onClick={signOut}>Sign Out</button></div>
+ *   ) : (
+ *     <button onClick={() => signIn(email, password)}>Sign In</button>
+ *   )
+ * }
+ * 
+ * @returns Authentication context object
+ * @throws Error if used outside of AuthProvider
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

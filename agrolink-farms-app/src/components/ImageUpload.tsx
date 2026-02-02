@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase';
+import { createBrowserClient } from '@/lib/supabase/client';
 
 interface ImageUploadProps {
   onUpload: (url: string) => void;
@@ -33,6 +33,7 @@ export default function ImageUpload({
     setError('');
 
     try {
+      const supabase = createBrowserClient();
       const file = files[0];
 
       // Validate file size (max 5MB)
